@@ -30,6 +30,19 @@ class Border(Sprite):
         self.rect = self.image.get_rect(topleft=pos)
 
 
+class Borders(Sprite):
+    def __init__(self):
+        super().__init__()
+        self.top = Border((255, 0, 0), (720, 10), (0, 0))
+        self.right = Border((0, 255, 0), (10, 700), (710, 10))
+        self.bottom = Border((0, 0, 255), (720, 10), (0, 710))
+        self.left = Border((0, 255, 255), (10, 700), (0, 10))
+        self.right_left_group = Group()
+        self.right_left_group.add(self.right, self.left)
+        self.top_bottom_group = Group()
+        self.top_bottom_group.add(self.top, self.bottom)
+
+
 class SimpleKeeper(Sprite):
     def __init__(self, color:tuple, size:list, pos:list):
         super().__init__()
@@ -71,20 +84,11 @@ def main():
         pg.display.set_caption("Test")
 
         background = Surface((screen_width, screen_width))
-        
-        top_border = Border((255, 0, 0), (720, 10), (0, 0))
-        right_border = Border((0, 255, 0), (10, 700), (710, 10))
-        bottom_border = Border((0, 0, 255), (720, 10), (0, 710))
-        left_border = Border((0, 255, 255), (10, 700), (0, 10))
 
-        right_left_borders = Group()
-        right_left_borders.add(right_border, left_border)
-
-        top_bottom_borders = Group()
-        top_bottom_borders.add(top_border, bottom_border)
+        borders = Borders()
 
         block_group = Group()
-        block = Block((255, 255, 255), [rect_width, rect_height], [randint(0, screen_width), randint(0, screen_height)], randint(12, 340), randint(5, 5))
+        block = None
         
         keeper = Keeper(screen_width, screen_height)
 
@@ -93,37 +97,34 @@ def main():
 
         while True:
             for event in pg.event.get():
-                #print(event)
                 if event.type == pg.QUIT:
                     return
 
             # COLLISIONS
-            keeper_collide_left = pg.sprite.collide_rect(keeper.left, left_border)
-            keeper_collide_right = pg.sprite.collide_rect(keeper.right, right_border)
-
-            if pg.sprite.spritecollide(block, right_left_borders, False):
-                block.angle += 180 - 2 * (block.angle + randint(0, 3))
-            if pg.sprite.collide_rect(block, top_border):
-                block.angle += 360 - 2 * (block.angle + randint(0, 3))
-            if pg.sprite.collide_rect(block, bottom_border):
-                # block.velocity = 0
-                block_group.remove(block)
-                # block.angle += 360 - 2 * block.angle + randint(0, 2)
-                # print('hit BOTTOM')
-            if pg.sprite.collide_rect(block, keeper.left):
-                # block.angle += 360 - 2 * block.angle
-                block.angle = 250
-            if pg.sprite.collide_rect(block, keeper.middle):
-                # block.angle += 360 - 2 * block.angle
-                block.angle = 270 + randint(-5, 5)
-            if pg.sprite.collide_rect(block, keeper.right):
-                block.angle = 290
+            keeper_collide_left = pg.sprite.collide_rect(keeper.left, borders.left)
+            keeper_collide_right = pg.sprite.collide_rect(keeper.right, borders.right)
+            if block:
+                if pg.sprite.spritecollide(block, borders.right_left_group, False):
+                    block.angle += 180 - 2 * (block.angle + randint(0, 3))
+                if pg.sprite.collide_rect(block, borders.top):
+                    block.angle += 360 - 2 * (block.angle + randint(0, 3))
+                if pg.sprite.collide_rect(block, borders.bottom):
+                    block_group.remove(block)
+                    # block.velocity = 0
+                    # block.angle += 360 - 2 * block.angle + randint(0, 2)
+                    # print('hit BOTTOM')
+                if pg.sprite.collide_rect(block, keeper.left):
+                    block.angle = 250 + randint(-5, 5)
+                if pg.sprite.collide_rect(block, keeper.middle):
+                    block.angle = 270 + randint(-5, 5)
+                if pg.sprite.collide_rect(block, keeper.right):
+                    block.angle = 290 + randint(-5, 5)
 
             # KEY PRESSES
             keys = pg.key.get_pressed()
 
             if keys[pg.K_SPACE] and not block_group:
-                block = Block((255, 255, 255), [rect_width, rect_height], [randint(0, screen_width), randint(0, screen_height)], randint(12, 340), randint(7, 7))
+                block = Block((255, 255, 255), [rect_width, rect_height], [randint(0, screen_width), randint(screen_height/1.5, screen_height)], randint(200, 340), randint(7, 7))
                 block_group.add(block)
 
             if keys[pg.K_RIGHT] and not keeper_collide_right:
@@ -133,15 +134,13 @@ def main():
             
             window.blit(background, (0, 0))
 
-            right_left_borders.draw(window)
-            top_bottom_borders.draw(window)
+            borders.right_left_group.draw(window)
+            borders.top_bottom_group.draw(window)
 
             block_group.draw(window)
             block_group.update()
 
             keeper.group.draw(window)
-
-            
 
             pg.display.update()
             clock.tick(fps)
