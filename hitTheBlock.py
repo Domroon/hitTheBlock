@@ -1,13 +1,16 @@
 import pygame as pg
 from pygame.math import Vector2
-from pygame.sprite import Sprite
+from pygame.sprite import GroupSingle, Sprite
 from pygame.sprite import Group
 from pygame import Surface
 from random import randint
 
-
+TOP_BAR_HEIGHT = 40
+WINDOW_WIDTH = 720
+WINDOW_HEIGHT = 720 + TOP_BAR_HEIGHT
 SCREEN_WIDTH = 720
 SCREEN_HEIGHT = 720
+
 HITBLOCK_WIDTH = SCREEN_WIDTH / 10
 HITBLOCK_HEIGHT = SCREEN_HEIGHT / 10
 GAP_SIZE = SCREEN_WIDTH / 50
@@ -38,12 +41,12 @@ class Border(Sprite):
 
 
 class Borders(Sprite):
-    def __init__(self):
+    def __init__(self, border_thickness=10, shift_down=0, shift_right=0):
         super().__init__()
-        self.top = Border((255, 0, 0), (720, 10), (0, 0))
-        self.right = Border((0, 255, 0), (10, 700), (710, 10))
-        self.bottom = Border((0, 0, 255), (720, 10), (0, 710))
-        self.left = Border((0, 255, 255), (10, 700), (0, 10))
+        self.top = Border((255, 0, 0), (SCREEN_WIDTH, border_thickness), (shift_right, shift_down))
+        self.right = Border((0, 255, 0), (10, SCREEN_HEIGHT - 2*border_thickness), (SCREEN_WIDTH - border_thickness + shift_right, border_thickness + shift_down))
+        self.bottom = Border((0, 0, 255), (SCREEN_WIDTH, border_thickness), (shift_right, SCREEN_HEIGHT - border_thickness + shift_down))
+        self.left = Border((0, 255, 255), (border_thickness, SCREEN_HEIGHT - 2* border_thickness), (shift_right, border_thickness + shift_down))
         self.right_left_group = Group(self.right, self.left)
         self.top_bottom_group = Group(self.top, self.bottom)
 
@@ -55,7 +58,7 @@ class SimpleKeeper(Sprite):
         self.image.fill(color)
         self.pos = pos
         self.rect = self.image.get_rect(center=self.pos)
-
+ 
     def update(self, direction:str, velocity:int):
         if direction == 'right':
             self.pos[0] += velocity
@@ -65,19 +68,19 @@ class SimpleKeeper(Sprite):
 
 
 class Keeper(Sprite):
-    def __init__(self, length=80, width=20, middle_color=(0, 0, 255), side_color=(255, 0, 0)):
+    def __init__(self, shift_up=0, length=80, width=20, middle_color=(255, 0, 255), side_color=(255, 0, 0)):
         super().__init__()
         self.side_length = length / 2
-        self.middle = SimpleKeeper((255, 0, 0), [length, width], [SCREEN_WIDTH/2, SCREEN_HEIGHT - width])
-        self.left = SimpleKeeper((0, 255, 255), [length/4, width], [self.middle.rect.x - self.side_length/4, SCREEN_HEIGHT - width]) 
-        self.right = SimpleKeeper((0, 255, 255), [length/4, width], [self.middle.rect.x + length + self.side_length/4, SCREEN_HEIGHT - width]) 
+        self.middle = SimpleKeeper(middle_color, [length, width], [WINDOW_WIDTH/2, WINDOW_HEIGHT - width - shift_up])
+        self.left = SimpleKeeper(side_color, [length/4, width], [self.middle.rect.x - self.side_length/4, WINDOW_HEIGHT - width - shift_up]) 
+        self.right = SimpleKeeper(side_color, [length/4, width], [self.middle.rect.x + length + self.side_length/4, WINDOW_HEIGHT - width - shift_up]) 
 
         self.group = Group()
         self.group.add(self.left, self.middle, self.right)
 
 
 class HitBlock(Sprite):
-    def __init__(self, width=HITBLOCK_WIDTH, height=HITBLOCK_HEIGHT, pos=[SCREEN_WIDTH/10, SCREEN_HEIGHT/10], color=(255, 255, 255), number=str(randint(1, 10))):
+    def __init__(self, width=HITBLOCK_WIDTH, height=HITBLOCK_HEIGHT, pos=[WINDOW_WIDTH/10, WINDOW_HEIGHT/10], color=(255, 255, 255), number=str(randint(1, 10))):
         super().__init__()
         self.number = number
         self.color = color
@@ -102,23 +105,48 @@ class HitBlock(Sprite):
         self.font.render_to(self.image, self.font_rect, self.number, self.color)
 
 
+class Score(Sprite):
+    def __init__(self, number='0', color=(255, 255, 255)):
+        super().__init__()
+        self.number = number
+        self.color = color
+        self.font = self.font = pg.freetype.Font(None, TOP_BAR_HEIGHT/1.5)
+        self.image, self.rect = self.font.render(self.number, self.color)
+        self.rect.center = [WINDOW_WIDTH/2, TOP_BAR_HEIGHT/2]
+
+    def increase(self):
+        self.number = str(int(self.number) + 1)
+        self.image.blit(self.image, self.rect)
+        self.image, self.rect = self.font.render(self.number, self.color)
+        self.rect.center = [WINDOW_WIDTH/2, TOP_BAR_HEIGHT/2]
+        print(self.number)
+
+
 def main():
     pg.init()
     try:
-        window = pg.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
+        window = pg.display.set_mode((WINDOW_WIDTH, WINDOW_HEIGHT))
         pg.display.set_caption("HitTheBlock")
 
-        background = Surface((SCREEN_WIDTH, SCREEN_HEIGHT))
-
-        borders = Borders()
-
+        # INIT SURFACES
+        background = Surface((WINDOW_WIDTH, WINDOW_HEIGHT))
+        top_bar = Surface((SCREEN_WIDTH, TOP_BAR_HEIGHT))
+        top_bar.fill((255, 0, 255))
+        screen = Surface((SCREEN_WIDTH, SCREEN_HEIGHT))
+        screen_background = Surface((SCREEN_WIDTH, SCREEN_HEIGHT))
+        
+        # INIT SPRITES
+        borders = Borders(shift_down=TOP_BAR_HEIGHT)
         ball_group = Group()
         ball = None
         
-        keeper = Keeper(length=150)
+        keeper = Keeper(shift_up=10)
+
+        score = Score()
+        score_group = GroupSingle(score)
 
         row = HITBLOCK_WIDTH - GAP_SIZE
-        column = HITBLOCK_HEIGHT - GAP_SIZE
+        column = HITBLOCK_HEIGHT - GAP_SIZE + TOP_BAR_HEIGHT
         first_pos = [row, column]
         hitblocks = Group()
         hitblock_column_quantity = SCREEN_WIDTH/(HITBLOCK_WIDTH + GAP_SIZE)
@@ -163,8 +191,8 @@ def main():
                 collided_hitblock = pg.sprite.spritecollide(ball, hitblocks, False)
                 if collided_hitblock:
                     ball.angle += 180 + randint(-5, 5)
+                    score.increase()
                     for hitblock in collided_hitblock:
-                        print(hitblock.number)
                         hitblock.decrease_number()
                         if int(hitblock.number) == 0:
                             hitblocks.remove(hitblock)
@@ -181,10 +209,12 @@ def main():
             elif keys[pg.K_LEFT] and not keeper_collide_left:
                 keeper.group.update('left', 4)
             
+            # DRAW
             window.blit(background, (0, 0))
-
+            # window.blit(screen_background, [0, 0])
             borders.right_left_group.draw(window)
-            borders.top_bottom_group.draw(window)
+
+            borders.top_bottom_group.draw(window)    
 
             ball_group.draw(window)
             ball_group.update()
@@ -193,7 +223,14 @@ def main():
 
             keeper.group.draw(window)
 
+            score_group.draw(window)
+            
+            # window.blit(top, [0, TOP_BAR_HEIGHT])
+
+            # window.blit(top_bar, [0, 0])
+            
             pg.display.update()
+            # pg.display.flip()
             clock.tick(fps)
 
     finally:
